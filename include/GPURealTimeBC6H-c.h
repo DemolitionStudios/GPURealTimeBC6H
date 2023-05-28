@@ -30,6 +30,7 @@ typedef struct
 
 bool GPURealTimeBC6H_Initialize(uint32_t preset);
 bool GPURealTimeBC6H_Compress(GPURealTimeBC6H_Image* srcImage, uint32_t format, GPURealTimeBC6H_Image* dstImage);
+void GPURealTimeBC6H_FreeImage(GPURealTimeBC6H_Image* dstImage);
 void GPURealTimeBC6H_Release();
 
 

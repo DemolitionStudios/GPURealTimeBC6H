@@ -22,7 +22,24 @@ bool GPURealTimeBC6H_Compress(GPURealTimeBC6H_Image* srcImage, uint32_t format, 
 
   dstImageCpp.m_format = SImage::ImageFormat::BC6H;
  
-  return gCompressor.Compress(&srcImageCpp, &dstImageCpp);
+  /// TODO: add format to Compress parameters
+  bool result = gCompressor.Compress(&srcImageCpp, &dstImageCpp);
+  if (result)
+  {
+    dstImage->m_width = srcImageCpp.m_width;
+    dstImage->m_height = srcImageCpp.m_height;
+    dstImage->m_data = dstImageCpp.m_data;
+    dstImage->m_dataSize = srcImageCpp.m_dataSize;
+  }
+
+  return result;
+}
+
+void GPURealTimeBC6H_FreeImage(GPURealTimeBC6H_Image* dstImage)
+{
+  SImage dstImageCpp;
+  dstImageCpp.m_data = dstImage->m_data;
+  gCompressor.FreeImage(&dstImageCpp);
 }
 
 void GPURealTimeBC6H_Release()

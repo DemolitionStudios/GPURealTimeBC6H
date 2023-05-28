@@ -73,6 +73,7 @@ public:
   bool Init(Preset preset);
   void Release();
   bool Compress(const SImage* srcImage, SImage* dstImage);
+  void FreeImage(SImage* dstImage);
 
   ID3D11Device* GetDevice() { return m_device; }
   ID3D11DeviceContext* GetCtx() { return m_ctx; }

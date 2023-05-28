@@ -26,7 +26,7 @@
     <ClInclude Include="src\GPURealTimeBC6H.h">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\GPURealTimeBC6H-c.h">
+    <ClInclude Include="include\GPURealTimeBC6H-c.h">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>

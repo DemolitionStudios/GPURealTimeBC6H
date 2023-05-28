@@ -177,11 +177,11 @@ void GPURealTimeBC6H::CreateTargets()
 	hr = m_device->CreateRenderTargetView(m_tmpTargetRes, nullptr, &m_tmpTargetView);
 	_ASSERT(SUCCEEDED(hr));
 
-	texDesc.Width = m_imageWidth;
-	texDesc.Height = m_imageHeight;
+	texDesc.Width = DivideAndRoundUp(m_imageWidth, BC_BLOCK_SIZE);
+	texDesc.Height = DivideAndRoundUp(m_imageHeight, BC_BLOCK_SIZE);
 	texDesc.MipLevels = 1;
 	texDesc.ArraySize = 1;
-	texDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+	texDesc.Format = DXGI_FORMAT_R32G32B32A32_UINT;
 	texDesc.SampleDesc.Count = 1;
 	texDesc.SampleDesc.Quality = 0;
 	texDesc.Usage = D3D11_USAGE_STAGING;
@@ -370,31 +370,50 @@ bool GPURealTimeBC6H::Compress(const SImage* srcImage, SImage* dstImage)
 		uint32_t threadsY = 8;
 		m_ctx->Dispatch(DivideAndRoundUp(m_imageWidth, BC_BLOCK_SIZE * threadsX), DivideAndRoundUp(m_imageHeight, BC_BLOCK_SIZE * threadsY), 1);
 	}
+  else
+  {
+    return false;
+  }
 
 	m_ctx->End(m_timeEndQueries[m_frameID % MAX_QUERY_FRAME_NUM]);
 	m_ctx->End(m_disjointQueries[m_frameID % MAX_QUERY_FRAME_NUM]);
 
-	m_ctx->CopyResource(m_compressedTextureRes, m_compressTargetRes);
+	m_ctx->CopyResource(m_compressedTextureRes, m_tmpStagingRes);
 
   // Read the compressed texture
   D3D11_MAPPED_SUBRESOURCE mappedTexRes;
-  m_ctx->Map(m_compressedTextureRes, 0, D3D11_MAP_READ, 0, &mappedTexRes);
-  //if (mappedRes.pData)
-  //{
-  //  for (unsigned y = 0; y < m_imageHeight; ++y)
-  //  {
-  //    for (unsigned x = 0; x < m_imageWidth; ++x)
-  //    {
-  //      uint16_t bc6hData[4];
-  //      memcpy(&bc6hData, (uint8_t*)mappedRes.pData + mappedRes.RowPitch * y + x * sizeof(bc6hData), sizeof(bc6hData));
+  m_ctx->Map(m_tmpStagingRes, 0, D3D11_MAP_READ, 0, &mappedTexRes);
+  if (mappedRes.pData)
+  {
+    /*for (unsigned y = 0; y < m_imageHeight; ++y)
+    {
+      for (unsigned x = 0; x < m_imageWidth; ++x)
+      {
+        uint16_t bc6hData[4];
+        memcpy(&bc6hData, (uint8_t*)mappedRes.pData + mappedRes.RowPitch * y + x * sizeof(bc6hData), sizeof(bc6hData));
 
-  //      bc6hData[x + y * m_imageWidth].x = bc6hData[0];
-  //      bc6hData[x + y * m_imageWidth].y = bc6hData[1];
-  //      bc6hData[x + y * m_imageWidth].z = HalfToFloat(bc6hData[2]);
-  //    }
-  //  }
+        bc6hData[x + y * m_imageWidth].x = bc6hData[0];
+        bc6hData[x + y * m_imageWidth].y = bc6hData[1];
+        bc6hData[x + y * m_imageWidth].z = HalfToFloat(bc6hData[2]);
+      }
+    }*/
+
+    dstImage->m_width = DivideAndRoundUp(m_imageWidth, BC_BLOCK_SIZE);
+    dstImage->m_height = DivideAndRoundUp(m_imageHeight, BC_BLOCK_SIZE);
+    dstImage->m_format = SImage::ImageFormat::BC6H;
+    dstImage->m_dataSize = dstImage->m_width * dstImage->m_height * sizeof(BufferBC6H);
+    dstImage->m_data = static_cast<uint8_t*>(malloc(dstImage->m_dataSize));
+    if (mappedRes.RowPitch == dstImage->m_width * sizeof(BufferBC6H))
+      memcpy(dstImage->m_data, mappedRes.pData, dstImage->m_dataSize);
+    else
+      memset(dstImage->m_data, 255, dstImage->m_dataSize);
 
     m_ctx->Unmap(m_tmpStagingRes, 0);
+  }
+  else
+  {
+    return false;
+  }
 
 	//if (m_blitVS && m_blitPS)
 	//{
@@ -466,64 +485,70 @@ bool GPURealTimeBC6H::Compress(const SImage* srcImage, SImage* dstImage)
   return true;
 }
 
-HRESULT GPURealTimeBC6H::TextureToBytes(ID3D11Texture2D* pSrcTexture, std::vector<ID3D11Buffer*>& subTextureAsBufs)
+void GPURealTimeBC6H::FreeImage(SImage* dstImage)
 {
-  HRESULT hr = S_OK;
-
-  D3D11_TEXTURE2D_DESC desc;
-  pSrcTexture->GetDesc(&desc);
-
-  if ((desc.ArraySize * desc.MipLevels) != (UINT)subTextureAsBufs.size())
-    return E_INVALIDARG;
-
-  auto image = std::make_unique<ScratchImage>();
-  if (!image)
-  {
-    return E_OUTOFMEMORY;
-  }
-  hr = image->Initialize2D(dstFormat, desc.Width, desc.Height, desc.ArraySize, desc.MipLevels);
-  if (FAILED(hr))
-    return hr;
-
-  UINT srcW = desc.Width, srcH = desc.Height;
-  for (UINT item = 0; item < desc.ArraySize; ++item)
-  {
-    desc.Width = srcW; desc.Height = srcH;
-    for (UINT level = 0; level < desc.MipLevels; ++level)
-    {
-      ID3D11Buffer* pReadbackbuf = CreateAndCopyToCPUBuf(m_pDevice, m_pContext, subTextureAsBufs[item * desc.MipLevels + level]);
-      if (!pReadbackbuf)
-      {
-        hr = E_OUTOFMEMORY;
-        return hr;
-      }
-
-      D3D11_MAPPED_SUBRESOURCE mappedSrc;
-#pragma warning (push)
-#pragma warning (disable:6387)
-      m_pContext->Map(pReadbackbuf, 0, D3D11_MAP_READ, 0, &mappedSrc);
-      memcpy(image->GetImage(level, item, 0)->pixels, mappedSrc.pData, desc.Height * desc.Width * sizeof(BufferBC6HBC7) / BLOCK_SIZE);
-      m_pContext->Unmap(pReadbackbuf, 0);
-#pragma warning (pop)
-
-      SAFE_RELEASE(pReadbackbuf);
-
-      desc.Width >>= 1; if (desc.Width < 4) desc.Width = 4;
-      desc.Height >>= 1; if (desc.Height < 4) desc.Height = 4;
-    }
-  }
-
-  TexMetadata info;
-  info = image->GetMetadata();
-  info.miscFlags = desc.MiscFlags;                                    // handle the case if TEX_MISC_TEXTURECUBE is present
-  if (IsSRGB(desc.Format) && dstFormat == DXGI_FORMAT_BC7_UNORM)    // input is sRGB, so save the encoded file also as sRGB format
-  {
-    info.format = DXGI_FORMAT_BC7_UNORM_SRGB;
-  }
-  hr = SaveToDDSFile(image->GetImages(), image->GetImageCount(), info, DDS_FLAGS_NONE, strFilename);
-
-  return hr;
+  free(dstImage->m_data);
+  dstImage->m_data = nullptr;
 }
+
+//HRESULT GPURealTimeBC6H::TextureToBytes(ID3D11Texture2D* pSrcTexture, std::vector<ID3D11Buffer*>& subTextureAsBufs)
+//{
+//  HRESULT hr = S_OK;
+//
+//  D3D11_TEXTURE2D_DESC desc;
+//  pSrcTexture->GetDesc(&desc);
+//
+//  if ((desc.ArraySize * desc.MipLevels) != (UINT)subTextureAsBufs.size())
+//    return E_INVALIDARG;
+//
+//  auto image = std::make_unique<ScratchImage>();
+//  if (!image)
+//  {
+//    return E_OUTOFMEMORY;
+//  }
+//  hr = image->Initialize2D(dstFormat, desc.Width, desc.Height, desc.ArraySize, desc.MipLevels);
+//  if (FAILED(hr))
+//    return hr;
+//
+//  UINT srcW = desc.Width, srcH = desc.Height;
+//  for (UINT item = 0; item < desc.ArraySize; ++item)
+//  {
+//    desc.Width = srcW; desc.Height = srcH;
+//    for (UINT level = 0; level < desc.MipLevels; ++level)
+//    {
+//      ID3D11Buffer* pReadbackbuf = CreateAndCopyToCPUBuf(m_pDevice, m_pContext, subTextureAsBufs[item * desc.MipLevels + level]);
+//      if (!pReadbackbuf)
+//      {
+//        hr = E_OUTOFMEMORY;
+//        return hr;
+//      }
+//
+//      D3D11_MAPPED_SUBRESOURCE mappedSrc;
+//#pragma warning (push)
+//#pragma warning (disable:6387)
+//      m_pContext->Map(pReadbackbuf, 0, D3D11_MAP_READ, 0, &mappedSrc);
+//      memcpy(image->GetImage(level, item, 0)->pixels, mappedSrc.pData, desc.Height * desc.Width * sizeof(BufferBC6HBC7) / BLOCK_SIZE);
+//      m_pContext->Unmap(pReadbackbuf, 0);
+//#pragma warning (pop)
+//
+//      SAFE_RELEASE(pReadbackbuf);
+//
+//      desc.Width >>= 1; if (desc.Width < 4) desc.Width = 4;
+//      desc.Height >>= 1; if (desc.Height < 4) desc.Height = 4;
+//    }
+//  }
+//
+//  TexMetadata info;
+//  info = image->GetMetadata();
+//  info.miscFlags = desc.MiscFlags;                                    // handle the case if TEX_MISC_TEXTURECUBE is present
+//  if (IsSRGB(desc.Format) && dstFormat == DXGI_FORMAT_BC7_UNORM)    // input is sRGB, so save the encoded file also as sRGB format
+//  {
+//    info.format = DXGI_FORMAT_BC7_UNORM_SRGB;
+//  }
+//  hr = SaveToDDSFile(image->GetImages(), image->GetImageCount(), info, DDS_FLAGS_NONE, strFilename);
+//
+//  return hr;
+//}
 
 void GPURealTimeBC6H::CopyTexture(Vec3* image, ID3D11ShaderResourceView* srcView)
 {
