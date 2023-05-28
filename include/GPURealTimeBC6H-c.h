@@ -22,10 +22,10 @@ typedef enum
 
 typedef struct 
 {
-  unsigned m_width;
-  unsigned m_height;
-  uint8_t* m_data;
-  unsigned m_dataSize;
+  unsigned width;
+  unsigned height;
+  uint8_t* data;
+  unsigned dataSize;
 } GPURealTimeBC6H_Image;
 
 bool GPURealTimeBC6H_Initialize(uint32_t preset);

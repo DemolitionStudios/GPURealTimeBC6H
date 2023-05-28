@@ -398,6 +398,7 @@ bool GPURealTimeBC6H::Compress(const SImage* srcImage, SImage* dstImage)
       }
     }*/
 
+    // https://github.com/walbourn/directx-sdk-samples/blob/main/BC6HBC7EncoderCS/utils.cpp
     dstImage->m_width = DivideAndRoundUp(m_imageWidth, BC_BLOCK_SIZE);
     dstImage->m_height = DivideAndRoundUp(m_imageHeight, BC_BLOCK_SIZE);
     dstImage->m_format = SImage::ImageFormat::BC6H;
