@@ -58,6 +58,18 @@ namespace
     return (x + divisor - 1) / divisor;
   }
 
+  uint32_t roundUp(uint32_t numToRound, uint32_t multiple)
+  {
+    if (multiple == 0)
+      return numToRound;
+
+    uint32_t remainder = numToRound % multiple;
+    if (remainder == 0)
+      return numToRound;
+
+    return numToRound + multiple - remainder;
+  }
+
   struct BufferBC6H
   {
     UINT color[4];
@@ -232,10 +244,14 @@ void GPURealTimeBC6H::CreateQueries()
 
 void GPURealTimeBC6H::CreateConstantBuffer()
 {
+  // For a constant buffer (BindFlags of D3D11_BUFFER_DESC set to D3D11_BIND_CONSTANT_BUFFER), 
+  // you must set the ByteWidth value of D3D11_BUFFER_DESC in multiples of 16, and less than or equal 
+  // to D3D11_REQ_CONSTANT_BUFFER_ELEMENT_COUNT
+
 	D3D11_BUFFER_DESC desc;
 	ZeroMemory(&desc, sizeof(desc));
 	desc.Usage = D3D11_USAGE_DYNAMIC;
-	desc.ByteWidth = sizeof(SShaderCB);
+	desc.ByteWidth = roundUp(sizeof(SShaderCB), 16);
 	desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
