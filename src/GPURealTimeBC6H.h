@@ -13,6 +13,9 @@
 #include <d3d11.h>
 #include <d3dcompiler.h>
 
+// Note: that is incomplete, needs some work
+#define HAVE_QUALITY_MEASUREMENT 0
+
 struct Vec2
 {
   Vec2()
@@ -107,9 +110,11 @@ private:
   ID3D11ShaderResourceView* m_compressedTextureView = nullptr;
   ID3D11Texture2D* m_compressTargetRes = nullptr;
   ID3D11UnorderedAccessView* m_compressTargetUAV = nullptr;
+#if HAVE_QUALITY_MEASUREMENT
   ID3D11Texture2D* m_tmpTargetRes = nullptr;
   ID3D11RenderTargetView* m_tmpTargetView = nullptr;
-  ID3D11Texture2D* m_tmpStagingRes = nullptr;
+#endif
+	ID3D11Texture2D* m_tmpStagingRes = nullptr;
 
   HWND m_windowHandle = 0;
   Vec2 m_texelBias = Vec2(0.0f, 0.0f);

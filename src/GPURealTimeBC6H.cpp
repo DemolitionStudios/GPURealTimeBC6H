@@ -165,63 +165,94 @@ bool GPURealTimeBC6H::Init(Preset preset)
 
 void GPURealTimeBC6H::CreateTargets()
 {
-	D3D11_TEXTURE2D_DESC texDesc;
-	texDesc.Width = DivideAndRoundUp(m_imageWidth, BC_BLOCK_SIZE);
-	texDesc.Height = DivideAndRoundUp(m_imageHeight, BC_BLOCK_SIZE);
-	texDesc.MipLevels = 1;
-	texDesc.ArraySize = 1;
-	texDesc.Format = DXGI_FORMAT_R32G32B32A32_UINT;
-	texDesc.SampleDesc.Count = 1;
-	texDesc.SampleDesc.Quality = 0;
-	texDesc.Usage = D3D11_USAGE_DEFAULT;
-	texDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
-	texDesc.CPUAccessFlags = 0;
-	texDesc.MiscFlags = 0;
-	HRESULT hr = m_device->CreateTexture2D(&texDesc, nullptr, &m_compressTargetRes);
-	_ASSERT(SUCCEEDED(hr));
+	{
+		D3D11_TEXTURE2D_DESC desc;
+		ZeroMemory(&desc, sizeof(desc));
+		desc.Format = DXGI_FORMAT_BC6H_UF16;
+		desc.Usage = D3D11_USAGE_DEFAULT;
+		desc.Width = m_imageWidth;
+		desc.Height = m_imageHeight;
+		desc.MipLevels = 1;
+		desc.ArraySize = 1;
+		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+		desc.SampleDesc.Count = 1;
+		desc.SampleDesc.Quality = 0;
+		HRESULT hr = m_device->CreateTexture2D(&desc, nullptr, &m_compressedTextureRes);
+		_ASSERT(SUCCEEDED(hr));
 
-	hr = m_device->CreateUnorderedAccessView(m_compressTargetRes, nullptr, &m_compressTargetUAV);
-	_ASSERT(SUCCEEDED(hr));
+		D3D11_SHADER_RESOURCE_VIEW_DESC resViewDesc;
+		resViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+		resViewDesc.Format = desc.Format;
+		resViewDesc.Texture2D.MostDetailedMip = 0;
+		resViewDesc.Texture2D.MipLevels = desc.MipLevels;
+		hr = m_device->CreateShaderResourceView(m_compressedTextureRes, &resViewDesc, &m_compressedTextureView);
+		_ASSERT(SUCCEEDED(hr));
+	}
 
-  /// TODO: don't need
-	texDesc.Width = m_imageWidth;
-	texDesc.Height = m_imageHeight;
-	texDesc.MipLevels = 1;
-	texDesc.ArraySize = 1;
-	texDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-	texDesc.SampleDesc.Count = 1;
-	texDesc.SampleDesc.Quality = 0;
-	texDesc.Usage = D3D11_USAGE_DEFAULT;
-	texDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-	texDesc.CPUAccessFlags = 0;
-	texDesc.MiscFlags = 0;
-	hr = m_device->CreateTexture2D(&texDesc, nullptr, &m_tmpTargetRes);
-	_ASSERT(SUCCEEDED(hr));
+	{
+		D3D11_TEXTURE2D_DESC texDesc;
+		texDesc.Width = DivideAndRoundUp(m_imageWidth, BC_BLOCK_SIZE);
+		texDesc.Height = DivideAndRoundUp(m_imageHeight, BC_BLOCK_SIZE);
+		texDesc.MipLevels = 1;
+		texDesc.ArraySize = 1;
+		texDesc.Format = DXGI_FORMAT_R32G32B32A32_UINT;
+		texDesc.SampleDesc.Count = 1;
+		texDesc.SampleDesc.Quality = 0;
+		texDesc.Usage = D3D11_USAGE_DEFAULT;
+		texDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
+		texDesc.CPUAccessFlags = 0;
+		texDesc.MiscFlags = 0;
+		HRESULT hr = m_device->CreateTexture2D(&texDesc, nullptr, &m_compressTargetRes);
+		_ASSERT(SUCCEEDED(hr));
 
-	hr = m_device->CreateRenderTargetView(m_tmpTargetRes, nullptr, &m_tmpTargetView);
-	_ASSERT(SUCCEEDED(hr));
+		hr = m_device->CreateUnorderedAccessView(m_compressTargetRes, nullptr, &m_compressTargetUAV);
+		_ASSERT(SUCCEEDED(hr));
 
-	texDesc.Width = DivideAndRoundUp(m_imageWidth, BC_BLOCK_SIZE);
-	texDesc.Height = DivideAndRoundUp(m_imageHeight, BC_BLOCK_SIZE);
-	texDesc.MipLevels = 1;
-	texDesc.ArraySize = 1;
-	texDesc.Format = DXGI_FORMAT_R32G32B32A32_UINT;
-	texDesc.SampleDesc.Count = 1;
-	texDesc.SampleDesc.Quality = 0;
-	texDesc.Usage = D3D11_USAGE_STAGING;
-	texDesc.BindFlags = 0;
-	texDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-	texDesc.MiscFlags = 0;
-	hr = m_device->CreateTexture2D(&texDesc, nullptr, &m_tmpStagingRes);
-	_ASSERT(SUCCEEDED(hr));
+#if HAVE_QUALITY_MEASUREMENT
+		texDesc.Width = m_imageWidth;
+		texDesc.Height = m_imageHeight;
+		texDesc.MipLevels = 1;
+		texDesc.ArraySize = 1;
+		texDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		texDesc.SampleDesc.Count = 1;
+		texDesc.SampleDesc.Quality = 0;
+		texDesc.Usage = D3D11_USAGE_DEFAULT;
+		texDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+		texDesc.CPUAccessFlags = 0;
+		texDesc.MiscFlags = 0;
+		hr = m_device->CreateTexture2D(&texDesc, nullptr, &m_tmpTargetRes);
+		_ASSERT(SUCCEEDED(hr));
+
+		hr = m_device->CreateRenderTargetView(m_tmpTargetRes, nullptr, &m_tmpTargetView);
+		_ASSERT(SUCCEEDED(hr));
+#endif
+
+		texDesc.Width = DivideAndRoundUp(m_imageWidth, BC_BLOCK_SIZE);
+		texDesc.Height = DivideAndRoundUp(m_imageHeight, BC_BLOCK_SIZE);
+		texDesc.MipLevels = 1;
+		texDesc.ArraySize = 1;
+		texDesc.Format = DXGI_FORMAT_R32G32B32A32_UINT;
+		texDesc.SampleDesc.Count = 1;
+		texDesc.SampleDesc.Quality = 0;
+		texDesc.Usage = D3D11_USAGE_STAGING;
+		texDesc.BindFlags = 0;
+		texDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+		texDesc.MiscFlags = 0;
+		hr = m_device->CreateTexture2D(&texDesc, nullptr, &m_tmpStagingRes);
+		_ASSERT(SUCCEEDED(hr));
+	}
 }
 
 void GPURealTimeBC6H::DestroyTargets()
 {
+	SAFE_RELEASE(m_compressedTextureView);
+	SAFE_RELEASE(m_compressedTextureRes);
 	SAFE_RELEASE(m_compressTargetUAV);
 	SAFE_RELEASE(m_compressTargetRes);
+#if HAVE_QUALITY_MEASUREMENT
 	SAFE_RELEASE(m_tmpTargetView);
 	SAFE_RELEASE(m_tmpTargetRes);
+#endif
 	SAFE_RELEASE(m_tmpStagingRes);
 }
 
@@ -302,31 +333,14 @@ bool GPURealTimeBC6H::CreateImage(const SImage* img)
 	hr = m_device->CreateShaderResourceView(m_sourceTextureRes, &resViewDesc, &m_sourceTextureView);
 	_ASSERT(SUCCEEDED(hr));
 
-  if (m_compressedTextureRes == nullptr || m_imageWidth != img->m_width || m_imageHeight != img->m_height)
-  {
-    m_imageWidth = img->m_width;
-    m_imageHeight = img->m_height;
-
-    desc.Format = DXGI_FORMAT_BC6H_UF16;
-    desc.Usage = D3D11_USAGE_DEFAULT;
-    hr = m_device->CreateTexture2D(&desc, nullptr, &m_compressedTextureRes);
-    _ASSERT(SUCCEEDED(hr));
-
-    resViewDesc.Format = desc.Format;
-    resViewDesc.Texture2D.MostDetailedMip = 0;
-    resViewDesc.Texture2D.MipLevels = desc.MipLevels;
-
-    hr = m_device->CreateShaderResourceView(m_compressedTextureRes, &resViewDesc, &m_compressedTextureView);
-    _ASSERT(SUCCEEDED(hr));
-  }
+	m_imageWidth = img->m_width;
+	m_imageHeight = img->m_height;
 
   return true;
 }
 
 void GPURealTimeBC6H::DestroyImage()
 {
-	SAFE_RELEASE(m_compressedTextureView);
-	SAFE_RELEASE(m_compressedTextureRes);
 	SAFE_RELEASE(m_sourceTextureView);
 	SAFE_RELEASE(m_sourceTextureRes);
 }
@@ -472,37 +486,15 @@ bool GPURealTimeBC6H::Compress(const SImage* srcImage, SImage* dstImage)
     }
   }
 
-	//if (m_blitVS && m_blitPS)
-	//{
-	//	m_ctx->OMSetRenderTargets(1, &m_backBufferView, nullptr);
-	//	D3D11_VIEWPORT vp;
-	//	vp.Width = (float)m_backbufferWidth;
-	//	vp.Height = (float)m_backbufferHeight;
-	//	vp.MinDepth = 0.0f;
-	//	vp.MaxDepth = 1.0f;
-	//	vp.TopLeftX = 0;
-	//	vp.TopLeftY = 0;
-	//	m_ctx->RSSetViewports(1, &vp);
-
-	//	m_ctx->VSSetShader(m_blitVS, nullptr, 0);
-	//	m_ctx->PSSetShader(m_blitPS, nullptr, 0);
-	//	m_ctx->PSSetShaderResources(0, 1, &m_sourceTextureView);
-	//	m_ctx->PSSetShaderResources(1, 1, &m_compressedTextureView);
-	//	m_ctx->PSSetSamplers(0, 1, &m_pointSampler);
-	//	m_ctx->PSSetConstantBuffers(0, 1, &m_constantBuffer);
-
-	//	m_ctx->DrawIndexed(4, 0, 0);
-	//}
-
-	//if (m_updateRMSE)
-	//{
-	//	UpdateRMSE();
-	//	m_updateRMSE = false;
-	//}
+#if HAVE_QUALITY_MEASUREMENT
+	if (m_updateRMSE)
+	{
+		UpdateRMSE();
+		m_updateRMSE = false;
+	}
+#endif
 
 	++m_frameID;
-  // TODO: replacement?
-	// m_swapChain->Present(0, 0);
 
 	D3D11_QUERY_DATA_TIMESTAMP_DISJOINT disjointData;
 	uint64_t timeStart;
@@ -551,65 +543,7 @@ void GPURealTimeBC6H::FreeImage(SImage* dstImage)
   dstImage->m_data = nullptr;
 }
 
-//HRESULT GPURealTimeBC6H::TextureToBytes(ID3D11Texture2D* pSrcTexture, std::vector<ID3D11Buffer*>& subTextureAsBufs)
-//{
-//  HRESULT hr = S_OK;
-//
-//  D3D11_TEXTURE2D_DESC desc;
-//  pSrcTexture->GetDesc(&desc);
-//
-//  if ((desc.ArraySize * desc.MipLevels) != (UINT)subTextureAsBufs.size())
-//    return E_INVALIDARG;
-//
-//  auto image = std::make_unique<ScratchImage>();
-//  if (!image)
-//  {
-//    return E_OUTOFMEMORY;
-//  }
-//  hr = image->Initialize2D(dstFormat, desc.Width, desc.Height, desc.ArraySize, desc.MipLevels);
-//  if (FAILED(hr))
-//    return hr;
-//
-//  UINT srcW = desc.Width, srcH = desc.Height;
-//  for (UINT item = 0; item < desc.ArraySize; ++item)
-//  {
-//    desc.Width = srcW; desc.Height = srcH;
-//    for (UINT level = 0; level < desc.MipLevels; ++level)
-//    {
-//      ID3D11Buffer* pReadbackbuf = CreateAndCopyToCPUBuf(m_pDevice, m_pContext, subTextureAsBufs[item * desc.MipLevels + level]);
-//      if (!pReadbackbuf)
-//      {
-//        hr = E_OUTOFMEMORY;
-//        return hr;
-//      }
-//
-//      D3D11_MAPPED_SUBRESOURCE mappedSrc;
-//#pragma warning (push)
-//#pragma warning (disable:6387)
-//      m_pContext->Map(pReadbackbuf, 0, D3D11_MAP_READ, 0, &mappedSrc);
-//      memcpy(image->GetImage(level, item, 0)->pixels, mappedSrc.pData, desc.Height * desc.Width * sizeof(BufferBC6HBC7) / BLOCK_SIZE);
-//      m_pContext->Unmap(pReadbackbuf, 0);
-//#pragma warning (pop)
-//
-//      SAFE_RELEASE(pReadbackbuf);
-//
-//      desc.Width >>= 1; if (desc.Width < 4) desc.Width = 4;
-//      desc.Height >>= 1; if (desc.Height < 4) desc.Height = 4;
-//    }
-//  }
-//
-//  TexMetadata info;
-//  info = image->GetMetadata();
-//  info.miscFlags = desc.MiscFlags;                                    // handle the case if TEX_MISC_TEXTURECUBE is present
-//  if (IsSRGB(desc.Format) && dstFormat == DXGI_FORMAT_BC7_UNORM)    // input is sRGB, so save the encoded file also as sRGB format
-//  {
-//    info.format = DXGI_FORMAT_BC7_UNORM_SRGB;
-//  }
-//  hr = SaveToDDSFile(image->GetImages(), image->GetImageCount(), info, DDS_FLAGS_NONE, strFilename);
-//
-//  return hr;
-//}
-
+#if HAVE_QUALITY_MEASUREMENT
 void GPURealTimeBC6H::CopyTexture(Vec3* image, ID3D11ShaderResourceView* srcView)
 {
 	if (m_blitVS && m_blitPS)
@@ -711,3 +645,4 @@ void GPURealTimeBC6H::UpdateRMSE()
 	sprintf_s(rmseString, "rgbRMSLE:%.4f lumRMSLE:%.4f Mode:%s\n", m_rgbRMSLE, m_lumRMSLE, m_preset == Preset::Quality ? "Quality" : "Fast");
 	OutputDebugStringA(rmseString);
 }
+#endif
