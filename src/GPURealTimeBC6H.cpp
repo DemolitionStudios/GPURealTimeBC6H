@@ -1,4 +1,5 @@
 #include "GPURealTimeBC6H.h"
+#include <iostream>
 
 namespace Shaders
 {
@@ -6,7 +7,7 @@ namespace Shaders
   #include "shaders/compress_speed.inc"
 }
 
-#define SAFE_RELEASE( x ) { if ( x ) { x->Release(); x = nullptr; } }
+#define SAFE_RELEASE(x) { if (x) { safeRelease(reinterpret_cast<void**>(&x), #x); } }
 
 namespace 
 {
@@ -61,6 +62,18 @@ namespace
   {
     UINT color[4];
   };
+
+  void safeRelease(void** ptr, const char* name)
+  {
+    IUnknown* obj = reinterpret_cast<IUnknown*>(*ptr);
+    if (obj)
+    { 
+      int refs = obj->Release();
+      if (refs != 0)
+        std::cerr << name << ": " << refs << " refs left";
+      *ptr = nullptr; 
+    }
+  }
 }
 
 GPURealTimeBC6H::GPURealTimeBC6H()
