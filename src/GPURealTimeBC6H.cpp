@@ -268,6 +268,7 @@ bool GPURealTimeBC6H::CreateImage(const SImage* img)
   switch (img->m_format)
   {
   case SImage::ImageFormat::RGBA32F:
+    /// TODO: support RGBA32 input
     textureFormat = DXGI_FORMAT_R32G32B32A32_FLOAT;
     break;
   default:
@@ -276,7 +277,7 @@ bool GPURealTimeBC6H::CreateImage(const SImage* img)
 
 	D3D11_SUBRESOURCE_DATA initialData;
 	initialData.pSysMem = img->m_data;
-	initialData.SysMemPitch = img->m_width * 4 * 2;
+	initialData.SysMemPitch = img->m_width * sizeof(float) * 4;
 	initialData.SysMemSlicePitch = 0;
 
 	D3D11_TEXTURE2D_DESC desc;
@@ -380,20 +381,22 @@ bool GPURealTimeBC6H::Compress(const SImage* srcImage, SImage* dstImage)
 	m_ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 	m_ctx->IASetIndexBuffer(m_ib, DXGI_FORMAT_R16_UINT, 0);
 
-	SShaderCB shaderCB;
-	shaderCB.m_textureSizeInBlocks[0] = DivideAndRoundUp(m_imageWidth, BC_BLOCK_SIZE);
-	shaderCB.m_textureSizeInBlocks[1] = DivideAndRoundUp(m_imageHeight, BC_BLOCK_SIZE);
-	shaderCB.m_imageSizeRcp.x = 1.0f / m_imageWidth;
-	shaderCB.m_imageSizeRcp.y = 1.0f / m_imageHeight;
-	shaderCB.m_texelBias = m_texelBias;
-	shaderCB.m_texelScale = m_texelScale;
-	shaderCB.m_exposure = static_cast<float>(exp(m_imageExposure));
-	shaderCB.m_blitMode = m_blitMode;
+  {
+    SShaderCB shaderCB;
+    shaderCB.m_textureSizeInBlocks[0] = DivideAndRoundUp(m_imageWidth, BC_BLOCK_SIZE);
+    shaderCB.m_textureSizeInBlocks[1] = DivideAndRoundUp(m_imageHeight, BC_BLOCK_SIZE);
+    shaderCB.m_imageSizeRcp.x = 1.0f / m_imageWidth;
+    shaderCB.m_imageSizeRcp.y = 1.0f / m_imageHeight;
+    shaderCB.m_texelBias = m_texelBias;
+    shaderCB.m_texelScale = m_texelScale;
+    shaderCB.m_exposure = static_cast<float>(exp(m_imageExposure));
+    shaderCB.m_blitMode = m_blitMode;
 
-	D3D11_MAPPED_SUBRESOURCE mappedRes;
-	m_ctx->Map(m_constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedRes);
-	memcpy(mappedRes.pData, &shaderCB, sizeof(shaderCB));
-	m_ctx->Unmap(m_constantBuffer, 0);
+    D3D11_MAPPED_SUBRESOURCE mappedRes;
+    m_ctx->Map(m_constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedRes);
+    memcpy(mappedRes.pData, &shaderCB, sizeof(shaderCB));
+    m_ctx->Unmap(m_constantBuffer, 0);
+  }
 
 	m_ctx->Begin(m_disjointQueries[m_frameID % MAX_QUERY_FRAME_NUM]);
 	m_ctx->End(m_timeBeginQueries[m_frameID % MAX_QUERY_FRAME_NUM]);
@@ -418,42 +421,55 @@ bool GPURealTimeBC6H::Compress(const SImage* srcImage, SImage* dstImage)
 	m_ctx->End(m_timeEndQueries[m_frameID % MAX_QUERY_FRAME_NUM]);
 	m_ctx->End(m_disjointQueries[m_frameID % MAX_QUERY_FRAME_NUM]);
 
-	m_ctx->CopyResource(m_compressedTextureRes, m_tmpStagingRes);
+	/// TODO: get away with just 1 copy
+	m_ctx->CopyResource(m_compressedTextureRes, m_compressTargetRes);
+	m_ctx->CopyResource(m_tmpStagingRes, m_compressedTextureRes);
 
   // Read the compressed texture
-  D3D11_MAPPED_SUBRESOURCE mappedTexRes;
-  m_ctx->Map(m_tmpStagingRes, 0, D3D11_MAP_READ, 0, &mappedTexRes);
-  if (mappedRes.pData)
   {
-    /*for (unsigned y = 0; y < m_imageHeight; ++y)
+    D3D11_MAPPED_SUBRESOURCE mappedTexRes;
+    m_ctx->Map(m_tmpStagingRes, 0, D3D11_MAP_READ, 0, &mappedTexRes);
+    if (mappedTexRes.pData)
     {
-      for (unsigned x = 0; x < m_imageWidth; ++x)
+      /*for (unsigned y = 0; y < m_imageHeight; ++y)
       {
-        uint16_t bc6hData[4];
-        memcpy(&bc6hData, (uint8_t*)mappedRes.pData + mappedRes.RowPitch * y + x * sizeof(bc6hData), sizeof(bc6hData));
+        for (unsigned x = 0; x < m_imageWidth; ++x)
+        {
+          uint16_t bc6hData[4];
+          memcpy(&bc6hData, (uint8_t*)mappedTexRes.pData + mappedTexRes.RowPitch * y + x * sizeof(bc6hData), sizeof(bc6hData));
 
-        bc6hData[x + y * m_imageWidth].x = bc6hData[0];
-        bc6hData[x + y * m_imageWidth].y = bc6hData[1];
-        bc6hData[x + y * m_imageWidth].z = HalfToFloat(bc6hData[2]);
+          bc6hData[x + y * m_imageWidth].x = bc6hData[0];
+          bc6hData[x + y * m_imageWidth].y = bc6hData[1];
+          bc6hData[x + y * m_imageWidth].z = HalfToFloat(bc6hData[2]);
+        }
+      }*/
+
+      // https://github.com/walbourn/directx-sdk-samples/blob/main/BC6HBC7EncoderCS/utils.cpp
+      dstImage->m_width = DivideAndRoundUp(m_imageWidth, BC_BLOCK_SIZE);
+      dstImage->m_height = DivideAndRoundUp(m_imageHeight, BC_BLOCK_SIZE);
+      dstImage->m_format = SImage::ImageFormat::BC6H;
+      dstImage->m_dataSize = dstImage->m_width * dstImage->m_height * sizeof(BufferBC6H);
+      dstImage->m_data = static_cast<uint8_t*>(malloc(dstImage->m_dataSize));
+      if (mappedTexRes.RowPitch == dstImage->m_width * sizeof(BufferBC6H))
+        memcpy(dstImage->m_data, mappedTexRes.pData, dstImage->m_dataSize);
+      else
+        memset(dstImage->m_data, 255, dstImage->m_dataSize);
+
+      int nonZero = 0;
+      for (int i = 0; i < dstImage->m_dataSize; ++i) {
+        if (dstImage->m_data[i] != 0)
+          nonZero += 1;
       }
-    }*/
+      //std::cerr << "Nonzero bc6 block values:" << nonZero << std::endl;
+      if (nonZero == 0)
+        std::cerr << "All bc6 block values are zero" << std::endl;
 
-    // https://github.com/walbourn/directx-sdk-samples/blob/main/BC6HBC7EncoderCS/utils.cpp
-    dstImage->m_width = DivideAndRoundUp(m_imageWidth, BC_BLOCK_SIZE);
-    dstImage->m_height = DivideAndRoundUp(m_imageHeight, BC_BLOCK_SIZE);
-    dstImage->m_format = SImage::ImageFormat::BC6H;
-    dstImage->m_dataSize = dstImage->m_width * dstImage->m_height * sizeof(BufferBC6H);
-    dstImage->m_data = static_cast<uint8_t*>(malloc(dstImage->m_dataSize));
-    if (mappedRes.RowPitch == dstImage->m_width * sizeof(BufferBC6H))
-      memcpy(dstImage->m_data, mappedRes.pData, dstImage->m_dataSize);
+      m_ctx->Unmap(m_tmpStagingRes, 0);
+    }
     else
-      memset(dstImage->m_data, 255, dstImage->m_dataSize);
-
-    m_ctx->Unmap(m_tmpStagingRes, 0);
-  }
-  else
-  {
-    return false;
+    {
+      return false;
+    }
   }
 
 	//if (m_blitVS && m_blitPS)
