@@ -299,6 +299,8 @@ bool GPURealTimeBC6H::CreateConstantBuffer()
 	HRESULT hr = m_device->CreateBuffer(&desc, nullptr, &m_constantBuffer);
   _ASSERT(SUCCEEDED(hr));
 	CHECK_HR("m_device->CreateBuffer(m_constantBuffer) failed");
+
+	return true;
 }
 
 bool GPURealTimeBC6H::CreateImage(const SImage* img)
