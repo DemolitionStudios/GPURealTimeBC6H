@@ -317,7 +317,7 @@ bool GPURealTimeBC6H::CreateImage(const SImage* img)
   return true;
 }
 
-void GPURealTimeBC6H::DestoryImage()
+void GPURealTimeBC6H::DestroyImage()
 {
 	SAFE_RELEASE(m_compressedTextureView);
 	SAFE_RELEASE(m_compressedTextureRes);
@@ -518,6 +518,9 @@ bool GPURealTimeBC6H::Compress(const SImage* srcImage, SImage* dstImage)
 			m_timeAccSampleNum = 0;
 		}
 	}
+
+  DestroyImage();
+
   return true;
 }
 

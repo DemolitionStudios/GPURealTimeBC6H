@@ -131,7 +131,7 @@ private:
   float m_lumRMSLE = 0.0f;
 
   bool CreateImage(const SImage* img);
-  void DestoryImage();
+  void DestroyImage();
   void CreateShaders();
   void DestroyShaders();
   void CreateTargets();
