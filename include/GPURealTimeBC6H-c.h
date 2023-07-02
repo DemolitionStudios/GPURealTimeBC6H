@@ -10,14 +10,14 @@ extern "C" {
 
 typedef enum 
 {
-  GPURealTimeBC6H_ImageFormat_RGBA,
-  GPURealTimeBC6H_ImageFormat_BC6H,
+  GPURealTimeBC6H_ImageFormat_RGBA32F = 0,
+  GPURealTimeBC6H_ImageFormat_BC6H    = 1,
 } GPURealTimeBC6H_ImageFormat;
 
 typedef enum
 {
-  GPURealTimeBC6H_Preset_Quality,
-  GPURealTimeBC6H_Preset_Speed,
+  GPURealTimeBC6H_Preset_Quality = 0,
+  GPURealTimeBC6H_Preset_Speed   = 1,
 } GPURealTimeBC6H_Preset;
 
 typedef struct 
