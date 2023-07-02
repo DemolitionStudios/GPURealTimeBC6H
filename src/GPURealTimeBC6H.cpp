@@ -122,7 +122,6 @@ bool GPURealTimeBC6H::Init(Preset preset)
   m_preset = preset;
 
 	CreateShaders();
-	CreateTargets();
 	CreateQueries();
 	CreateConstantBuffer();
 
@@ -361,8 +360,15 @@ void GPURealTimeBC6H::Release()
 
 bool GPURealTimeBC6H::Compress(const SImage* srcImage, SImage* dstImage)
 {
+  bool sizeChanged = srcImage->m_width != m_imageWidth || dstImage->m_width != m_imageHeight;
+
   if (!CreateImage(srcImage))
     return false;
+
+  if (sizeChanged) {
+    DestroyTargets();
+    CreateTargets();
+  }
 
 	m_ctx->ClearState();
 
