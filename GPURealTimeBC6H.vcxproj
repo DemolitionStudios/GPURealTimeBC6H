@@ -194,6 +194,11 @@
       </SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
+    <PostBuildEvent>
+      <Command>copy $(TargetPath) D:\projects\DemolitionStudios\hapunityplugin\3rdparty\GPURealTimeBC6H\lib
+xcopy /y  "$(TargetDir)$(TargetName).pdb" D:\projects\DemolitionStudios\hapunityplugin\3rdparty\GPURealTimeBC6H\lib
+</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -217,6 +222,11 @@
     <Lib>
       <IgnoreSpecificDefaultLibraries>LIBCMT;LIBCPMT;MSVCRT</IgnoreSpecificDefaultLibraries>
     </Lib>
+    <PostBuildEvent>
+      <Command>copy $(TargetPath) D:\projects\DemolitionStudios\hapunityplugin\3rdparty\GPURealTimeBC6H\lib
+xcopy /y  "$(TargetDir)$(TargetName).pdb" D:\projects\DemolitionStudios\hapunityplugin\3rdparty\GPURealTimeBC6H\lib
+</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">
     <ClCompile>
@@ -243,6 +253,11 @@
     <Lib>
       <IgnoreSpecificDefaultLibraries>LIBCMT;LIBCPMT;MSVCRT</IgnoreSpecificDefaultLibraries>
     </Lib>
+    <PostBuildEvent>
+      <Command>copy $(TargetPath) D:\projects\DemolitionStudios\hapunityplugin\3rdparty\GPURealTimeBC6H\lib
+xcopy /y  "$(TargetDir)$(TargetName).pdb" D:\projects\DemolitionStudios\hapunityplugin\3rdparty\GPURealTimeBC6H\lib
+</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
