@@ -111,13 +111,6 @@ bool GPURealTimeBC6H::Init(Preset preset)
 	res = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, 0, flags, featureLevels, ARRAYSIZE(featureLevels), D3D11_SDK_VERSION, &m_device, &retFeatureLevel, &m_ctx);
 	_ASSERT(SUCCEEDED(res));
 
-	// ID3D11Texture2D* backBuffer = NULL;
-	// res = m_swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&backBuffer);
-	// _ASSERT(SUCCEEDED(res));
-
-	// res = m_device->CreateRenderTargetView(backBuffer, nullptr, &m_backBufferView);
-	// _ASSERT(SUCCEEDED(res));
-	// backBuffer->Release();
 
   m_preset = preset;
 
