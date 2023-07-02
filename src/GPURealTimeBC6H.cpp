@@ -227,17 +227,21 @@ void GPURealTimeBC6H::DestroyTargets()
 
 void GPURealTimeBC6H::CreateQueries()
 {
+	HRESULT hr;
 	D3D11_QUERY_DESC queryDesc;
 	queryDesc.MiscFlags = 0;
 
 	for (unsigned i = 0; i < MAX_QUERY_FRAME_NUM; ++i)
 	{
 		queryDesc.Query = D3D11_QUERY_TIMESTAMP_DISJOINT;
-		m_device->CreateQuery(&queryDesc, &m_disjointQueries[i]);
+		hr = m_device->CreateQuery(&queryDesc, &m_disjointQueries[i]);
+		_ASSERT(SUCCEEDED(hr));
 
 		queryDesc.Query = D3D11_QUERY_TIMESTAMP;
-		m_device->CreateQuery(&queryDesc, &m_timeBeginQueries[i]);
-		m_device->CreateQuery(&queryDesc, &m_timeEndQueries[i]);
+		hr = m_device->CreateQuery(&queryDesc, &m_timeBeginQueries[i]);
+		_ASSERT(SUCCEEDED(hr));
+		hr = m_device->CreateQuery(&queryDesc, &m_timeEndQueries[i]);
+		_ASSERT(SUCCEEDED(hr));
 	}
 }
 
@@ -254,7 +258,8 @@ void GPURealTimeBC6H::CreateConstantBuffer()
 	desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
-	m_device->CreateBuffer(&desc, nullptr, &m_constantBuffer);
+	HRESULT hr = m_device->CreateBuffer(&desc, nullptr, &m_constantBuffer);
+  _ASSERT(SUCCEEDED(hr));
 }
 
 bool GPURealTimeBC6H::CreateImage(const SImage* img)
