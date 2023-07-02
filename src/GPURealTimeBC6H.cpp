@@ -8,6 +8,11 @@ namespace Shaders
 }
 
 #define SAFE_RELEASE(x) { if (x) { safeRelease(reinterpret_cast<void**>(&x), #x); } }
+#define CHECK_HR(message) if (hr < 0) \
+	{ \
+		std::cerr << "GPURealTimeBC6H: " << message << std::endl; \
+		return false; \
+	}
 
 namespace 
 {
@@ -107,18 +112,19 @@ bool GPURealTimeBC6H::Init(Preset preset)
 	flags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
 
-	HRESULT res;
-	res = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, 0, flags, featureLevels, ARRAYSIZE(featureLevels), D3D11_SDK_VERSION, &m_device, &retFeatureLevel, &m_ctx);
-	_ASSERT(SUCCEEDED(res));
-
+	HRESULT hr;
+	hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, 0, flags, featureLevels, ARRAYSIZE(featureLevels), D3D11_SDK_VERSION, &m_device, &retFeatureLevel, &m_ctx);
+	_ASSERT(SUCCEEDED(hr));
+	CHECK_HR("D3D11CreateDevice failed");
 
   m_preset = preset;
 
-	CreateShaders();
+	if (!CreateShaders())
+		return false;
 	CreateQueries();
-	CreateConstantBuffer();
+	if (!CreateConstantBuffer())
+		return false;
 
-	HRESULT hr;
 	D3D11_SAMPLER_DESC samplerDesc =
 	{
 		D3D11_FILTER_MIN_MAG_MIP_POINT,
@@ -137,6 +143,7 @@ bool GPURealTimeBC6H::Init(Preset preset)
 	};
 	hr = m_device->CreateSamplerState(&samplerDesc, &m_pointSampler);
 	_ASSERT(SUCCEEDED(hr));
+	CHECK_HR("m_device->CreateSamplerState failed");
 
 	D3D11_BUFFER_DESC bd;
 	ZeroMemory(&bd, sizeof(bd));
@@ -152,11 +159,12 @@ bool GPURealTimeBC6H::Init(Preset preset)
 
 	hr = m_device->CreateBuffer(&bd, &initData, &m_ib);
 	_ASSERT(SUCCEEDED(hr));
+	CHECK_HR("m_device->CreateBuffer(m_ib) failed");
 
 	return true;
 }
 
-void GPURealTimeBC6H::CreateTargets()
+bool GPURealTimeBC6H::CreateTargets()
 {
 	{
 		D3D11_TEXTURE2D_DESC desc;
@@ -172,6 +180,7 @@ void GPURealTimeBC6H::CreateTargets()
 		desc.SampleDesc.Quality = 0;
 		HRESULT hr = m_device->CreateTexture2D(&desc, nullptr, &m_compressedTextureRes);
 		_ASSERT(SUCCEEDED(hr));
+		CHECK_HR("m_device->CreateTexture2D(m_compressedTextureRes) failed");
 
 		D3D11_SHADER_RESOURCE_VIEW_DESC resViewDesc;
 		resViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
@@ -180,6 +189,7 @@ void GPURealTimeBC6H::CreateTargets()
 		resViewDesc.Texture2D.MipLevels = desc.MipLevels;
 		hr = m_device->CreateShaderResourceView(m_compressedTextureRes, &resViewDesc, &m_compressedTextureView);
 		_ASSERT(SUCCEEDED(hr));
+		CHECK_HR("m_device->CreateShaderResourceView(m_compressedTextureView) failed");
 	}
 
 	{
@@ -197,9 +207,11 @@ void GPURealTimeBC6H::CreateTargets()
 		texDesc.MiscFlags = 0;
 		HRESULT hr = m_device->CreateTexture2D(&texDesc, nullptr, &m_compressTargetRes);
 		_ASSERT(SUCCEEDED(hr));
+		CHECK_HR("m_device->CreateShaderResourceView(m_compressedTextureView) failed");
 
 		hr = m_device->CreateUnorderedAccessView(m_compressTargetRes, nullptr, &m_compressTargetUAV);
 		_ASSERT(SUCCEEDED(hr));
+		CHECK_HR("m_device->CreateUnorderedAccessView(m_compressTargetUAV) failed");
 
 #if HAVE_QUALITY_MEASUREMENT
 		texDesc.Width = m_imageWidth;
@@ -233,7 +245,9 @@ void GPURealTimeBC6H::CreateTargets()
 		texDesc.MiscFlags = 0;
 		hr = m_device->CreateTexture2D(&texDesc, nullptr, &m_tmpStagingRes);
 		_ASSERT(SUCCEEDED(hr));
+		CHECK_HR("m_device->CreateTexture2D(m_tmpStagingRes) failed");
 	}
+	return true;
 }
 
 void GPURealTimeBC6H::DestroyTargets()
@@ -269,7 +283,7 @@ void GPURealTimeBC6H::CreateQueries()
 	}
 }
 
-void GPURealTimeBC6H::CreateConstantBuffer()
+bool GPURealTimeBC6H::CreateConstantBuffer()
 {
   // For a constant buffer (BindFlags of D3D11_BUFFER_DESC set to D3D11_BIND_CONSTANT_BUFFER), 
   // you must set the ByteWidth value of D3D11_BUFFER_DESC in multiples of 16, and less than or equal 
@@ -284,6 +298,7 @@ void GPURealTimeBC6H::CreateConstantBuffer()
 
 	HRESULT hr = m_device->CreateBuffer(&desc, nullptr, &m_constantBuffer);
   _ASSERT(SUCCEEDED(hr));
+	CHECK_HR("m_device->CreateBuffer(m_constantBuffer) failed");
 }
 
 bool GPURealTimeBC6H::CreateImage(const SImage* img)
@@ -317,6 +332,7 @@ bool GPURealTimeBC6H::CreateImage(const SImage* img)
 	desc.SampleDesc.Quality = 0;
 	HRESULT hr = m_device->CreateTexture2D(&desc, &initialData, &m_sourceTextureRes);
 	_ASSERT(SUCCEEDED(hr));
+	CHECK_HR("m_device->CreateTexture2D(m_sourceTextureRes) failed");
 
 	D3D11_SHADER_RESOURCE_VIEW_DESC resViewDesc;
 	resViewDesc.Format = desc.Format;
@@ -325,6 +341,7 @@ bool GPURealTimeBC6H::CreateImage(const SImage* img)
 	resViewDesc.Texture2D.MipLevels = desc.MipLevels;
 	hr = m_device->CreateShaderResourceView(m_sourceTextureRes, &resViewDesc, &m_sourceTextureView);
 	_ASSERT(SUCCEEDED(hr));
+	CHECK_HR("m_device->CreateShaderResourceView(m_sourceTextureView) failed");
 
 	m_imageWidth = img->m_width;
 	m_imageHeight = img->m_height;
@@ -338,7 +355,7 @@ void GPURealTimeBC6H::DestroyImage()
 	SAFE_RELEASE(m_sourceTextureRes);
 }
 
-void GPURealTimeBC6H::CreateShaders()
+bool GPURealTimeBC6H::CreateShaders()
 {
 	unsigned shaderFlags = D3DCOMPILE_ENABLE_STRICTNESS;
 #ifdef _DEBUG
@@ -346,14 +363,23 @@ void GPURealTimeBC6H::CreateShaders()
 #endif
 
   /// TODO: use new shader compiler
+	HRESULT hr;
   if (m_preset == Preset::Quality)
   {
-    m_device->CreateComputeShader(Shaders::Compress_Quality, sizeof(Shaders::Compress_Quality), nullptr, &m_compressCS);
+    hr = m_device->CreateComputeShader(Shaders::Compress_Quality, sizeof(Shaders::Compress_Quality), nullptr, &m_compressCS);
   }
   else
   {
-    m_device->CreateComputeShader(Shaders::Compress_Speed, sizeof(Shaders::Compress_Speed), nullptr, &m_compressCS);
+    hr = m_device->CreateComputeShader(Shaders::Compress_Speed, sizeof(Shaders::Compress_Speed), nullptr, &m_compressCS);
   }
+
+	if (hr < 0)
+	{
+		std::cerr << "m_device->CreateComputeShader failed, preset: " << (int)m_preset << std::endl;
+		return false;
+	}
+
+	return true;
 }
 
 void GPURealTimeBC6H::DestroyShaders()
@@ -378,9 +404,11 @@ bool GPURealTimeBC6H::Compress(const SImage* srcImage, SImage* dstImage)
   if (!CreateImage(srcImage))
     return false;
 
-  if (sizeChanged) {
+  if (sizeChanged) 
+	{
     DestroyTargets();
-    CreateTargets();
+		if (!CreateTargets())
+			return false;
   }
 
 	m_ctx->ClearState();
@@ -422,6 +450,7 @@ bool GPURealTimeBC6H::Compress(const SImage* srcImage, SImage* dstImage)
 	}
   else
   {
+		std::cerr << "m_compressCS == nullptr" << std::endl;
     return false;
   }
 
@@ -438,43 +467,41 @@ bool GPURealTimeBC6H::Compress(const SImage* srcImage, SImage* dstImage)
     m_ctx->Map(m_tmpStagingRes, 0, D3D11_MAP_READ, 0, &mappedTexRes);
     if (mappedTexRes.pData)
     {
-      /*for (unsigned y = 0; y < m_imageHeight; ++y)
-      {
-        for (unsigned x = 0; x < m_imageWidth; ++x)
-        {
-          uint16_t bc6hData[4];
-          memcpy(&bc6hData, (uint8_t*)mappedTexRes.pData + mappedTexRes.RowPitch * y + x * sizeof(bc6hData), sizeof(bc6hData));
-
-          bc6hData[x + y * m_imageWidth].x = bc6hData[0];
-          bc6hData[x + y * m_imageWidth].y = bc6hData[1];
-          bc6hData[x + y * m_imageWidth].z = HalfToFloat(bc6hData[2]);
-        }
-      }*/
-
       // https://github.com/walbourn/directx-sdk-samples/blob/main/BC6HBC7EncoderCS/utils.cpp
       dstImage->m_width = DivideAndRoundUp(m_imageWidth, BC_BLOCK_SIZE);
       dstImage->m_height = DivideAndRoundUp(m_imageHeight, BC_BLOCK_SIZE);
       dstImage->m_format = SImage::ImageFormat::BC6H;
       dstImage->m_dataSize = dstImage->m_width * dstImage->m_height * sizeof(BufferBC6H);
       dstImage->m_data = static_cast<uint8_t*>(malloc(dstImage->m_dataSize));
-      if (mappedTexRes.RowPitch == dstImage->m_width * sizeof(BufferBC6H))
-        memcpy(dstImage->m_data, mappedTexRes.pData, dstImage->m_dataSize);
-      else
-        memset(dstImage->m_data, 255, dstImage->m_dataSize);
+			if (mappedTexRes.RowPitch == dstImage->m_width * sizeof(BufferBC6H)) 
+			{
+				memcpy(dstImage->m_data, mappedTexRes.pData, dstImage->m_dataSize);
+			}
+			else 
+			{
+				memset(dstImage->m_data, 255, dstImage->m_dataSize);
+				std::cerr << "mappedTexRes.RowPitch:" << mappedTexRes.RowPitch << "; dstImage->m_width * sizeof(BufferBC6H):" << dstImage->m_width * sizeof(BufferBC6H) << std::endl;
+				return false;
+			}
 
-      int nonZero = 0;
-      for (int i = 0; i < dstImage->m_dataSize; ++i) {
-        if (dstImage->m_data[i] != 0)
-          nonZero += 1;
-      }
-      //std::cerr << "Nonzero bc6 block values:" << nonZero << std::endl;
-      if (nonZero == 0)
-        std::cerr << "All bc6 block values are zero" << std::endl;
+#if 0
+			// Debug
+			int nonZero = 0;
+			for (int i = 0; i < dstImage->m_dataSize; ++i)
+			{
+				if (dstImage->m_data[i] != 0)
+					nonZero += 1;
+			}
+			//std::cerr << "Nonzero bc6 block values:" << nonZero << std::endl;
+			if (nonZero == 0)
+				std::cerr << "All bc6 block values are zero" << std::endl;
+#endif
 
       m_ctx->Unmap(m_tmpStagingRes, 0);
     }
     else
     {
+			std::cerr << "mappedTexRes.pData == nullptr" << std::endl;
       return false;
     }
   }

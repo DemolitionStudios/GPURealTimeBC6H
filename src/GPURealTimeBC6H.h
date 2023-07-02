@@ -137,12 +137,12 @@ private:
 
   bool CreateImage(const SImage* img);
   void DestroyImage();
-  void CreateShaders();
+	bool CreateShaders();
   void DestroyShaders();
-  void CreateTargets();
+  bool CreateTargets();
   void DestroyTargets();
   void CreateQueries();
-  void CreateConstantBuffer();
+  bool CreateConstantBuffer();
   void UpdateRMSE();
   void CopyTexture(Vec3* image, ID3D11ShaderResourceView* srcView);
 };
