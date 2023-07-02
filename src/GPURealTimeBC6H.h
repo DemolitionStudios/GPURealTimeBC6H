@@ -8,6 +8,7 @@
 #include <tchar.h>
 #include <vector>
 #include <string>
+#include <mutex>
 #include <stdint.h>
 
 #include <d3d11.h>
@@ -128,6 +129,8 @@ private:
   uint32_t m_imageHeight = 0;
   uint64_t m_frameID = 0;
   Preset m_preset;
+
+	std::mutex m_compressMutex;
 
   uint32_t m_blitMode = 1;
 

@@ -401,6 +401,9 @@ void GPURealTimeBC6H::Release()
 
 bool GPURealTimeBC6H::Compress(const SImage* srcImage, SImage* dstImage)
 {
+	// All the compression is essentially single-threaded due to the DX11 nature
+	std::lock_guard<std::mutex> lk(m_compressMutex);
+
   bool sizeChanged = srcImage->m_width != m_imageWidth || dstImage->m_width != m_imageHeight;
 
   if (!CreateImage(srcImage))
